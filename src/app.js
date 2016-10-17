@@ -9,6 +9,22 @@ var canvas = document.getElementById('screen');
 var game = new Game(canvas, update, render);
 var player = new Player({x: canvas.width/2, y: canvas.height/2}, canvas);
 
+var initialAsteroids = 10;
+var axisList = [];
+var asteroids = [];
+for (var i = 0; i < initialAsteroids; i++)
+{
+	var x = Math.floor(Math.random()*canvas.width);
+	var y = Math.floor(Math.random()*canvas.height);
+	asteroids.push({
+		position: {x: x, y: y},
+		angle: Math.floor(Math.random()*360),
+		mass: Math.floor(Math.random()*10 + 5),
+		velocity: {x:1, y:1}
+	});
+	axisList.push(asteroids[i]);
+}
+
 /**
  * @function masterLoop
  * Advances the game in sync with the refresh rate of the screen

@@ -10,6 +10,22 @@ var canvas = document.getElementById('screen');
 var game = new Game(canvas, update, render);
 var player = new Player({x: canvas.width/2, y: canvas.height/2}, canvas);
 
+var initialAsteroids = 10;
+var axisList = [];
+var asteroids = [];
+for (var i = 0; i < initialAsteroids; i++)
+{
+	var x = Math.floor(Math.random()*canvas.width);
+	var y = Math.floor(Math.random()*canvas.height);
+	asteroids.push({
+		position: {x: x, y: y},
+		angle: Math.floor(Math.random()*360),
+		mass: Math.floor(Math.random()*10 + 5),
+		velocity: {x:1, y:1}
+	});
+	axisList.push(asteroids[i]);
+}
+
 /**
  * @function masterLoop
  * Advances the game in sync with the refresh rate of the screen
@@ -133,12 +149,31 @@ function Player(position, canvas) {
     x: 0,
     y: 0
   }
+  this.maxVelocity = 
+  {
+	x: 5,
+	y: 5
+  }
+  this.minVelocity = 
+  {
+	x: -5,
+	y: -5
+  }
+  this.asteroidVelocity = 
+  {
+	  x: 0,
+	  y: 0
+  }
   this.angle = 0;
   this.radius  = 64;
   this.thrusting = false;
   this.steerLeft = false;
   this.steerRight = false;
-
+  this.shooting = false;
+  this.shots = [];
+  this.shotDelay = 500;
+  this.shotTimer = 500;
+  
   var self = this;
   window.onkeydown = function(event) {
     switch(event.key) {
@@ -154,6 +189,9 @@ function Player(position, canvas) {
       case 'd':
         self.steerRight = true;
         break;
+	  case ' ': //shoot (space)
+		self.shooting = true;
+		break;
     }
   }
 
@@ -171,6 +209,9 @@ function Player(position, canvas) {
       case 'd':
         self.steerRight = false;
         break;
+	  case ' ': //shoot (space)
+	  self.shooting = false;
+	  break;
     }
   }
 }
@@ -182,6 +223,8 @@ function Player(position, canvas) {
  * {DOMHighResTimeStamp} time the elapsed time since the last frame
  */
 Player.prototype.update = function(time) {
+	this.shotTimer+=time;
+	
   // Apply angular velocity
   if(this.steerLeft) {
     this.angle += time * 0.005;
@@ -195,9 +238,45 @@ Player.prototype.update = function(time) {
       x: Math.sin(this.angle),
       y: Math.cos(this.angle)
     }
-    this.velocity.x -= acceleration.x;
-    this.velocity.y -= acceleration.y;
+
+	if(acceleration.x > 0) //Moving left
+	{
+		if(this.velocity.x > this.minVelocity.x) this.velocity.x -= acceleration.x;
+	}
+	else if(acceleration.x < 0) //Moving right
+	{
+		if(this.velocity.x < this.maxVelocity.x) this.velocity.x -= acceleration.x;
+	}
+	if(acceleration.y > 0) //Moving up
+	{
+		if(this.velocity.y > this.minVelocity.y) this.velocity.y -= acceleration.y;
+	}
+	else if(acceleration.y < 0) //Moving down
+	{
+		if(this.velocity.y < this.maxVelocity.y) this.velocity.y -= acceleration.y;
+	}
   }
+  
+  if(this.shooting)
+  {
+	if(this.shotTimer >= this.shotDelay)
+	{
+		this.shotTimer = 0;
+		this.shots.push({
+			x: this.position.x, 
+			y: this.position.y,
+			velocity: {x: this.velocity.x, y: this.velocity.y}
+		});
+	}
+  }
+  
+  //Update shot positions
+  this.shots.forEach(function(shot, index)
+  {
+	  shot.x += shot.velocity.x;
+	  shot.y += shot.velocity.y;
+  });
+  
   // Apply velocity
   this.position.x += this.velocity.x;
   this.position.y += this.velocity.y;
@@ -215,7 +294,18 @@ Player.prototype.update = function(time) {
  */
 Player.prototype.render = function(time, ctx) {
   ctx.save();
-
+  
+  //Draw the player's shots
+  this.shots.forEach(function(shot, index)
+  {
+	  ctx.beginPath();
+	  ctx.moveTo(shot.x, shot.y);
+	  ctx.lineTo(shot.x+shot.velocity.x, shot.y+shot.velocity.y);
+	  ctx.closePath();
+	  ctx.strokeStyle = 'white';
+	  ctx.stroke();
+  });
+  
   // Draw player's ship
   ctx.translate(this.position.x, this.position.y);
   ctx.rotate(-this.angle);
@@ -228,6 +318,8 @@ Player.prototype.render = function(time, ctx) {
   ctx.strokeStyle = 'white';
   ctx.stroke();
 
+
+  
   // Draw engine thrust
   if(this.thrusting) {
     ctx.beginPath();
