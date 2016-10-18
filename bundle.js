@@ -21,8 +21,13 @@ for (var i = 0; i < initialAsteroids; i++)
 		position: {x: x, y: y},
 		angle: Math.floor(Math.random()*360),
 		mass: Math.floor(Math.random()*10 + 5),
-		velocity: {x:1, y:1}
+		size: "full",
+		angle: Math.floor(Math.random()*6),
+		speed: 0.8,
+		velocity: {x:0, y:0}
 	});
+	asteroids[i].velocity.x = Math.sin(asteroids[i].angle) * asteroids[i].speed;
+	asteroids[i].velocity.y = Math.cos(asteroids[i].angle) * asteroids[i].speed;
 	axisList.push(asteroids[i]);
 }
 
@@ -47,8 +52,20 @@ masterLoop(performance.now());
  * the number of milliseconds passed since the last frame.
  */
 function update(elapsedTime) {
-  player.update(elapsedTime);
-  // TODO: Update the game objects
+	player.update(elapsedTime);
+	// TODO: Update the game objects
+	asteroids.forEach(function(asteroid, index)
+	{
+	// Apply velocity
+	asteroid.position.x += asteroid.velocity.x;
+	asteroid.position.y += asteroid.velocity.y;
+
+	// Wrap around the screen
+	if(asteroid.position.x < 0) asteroid.position.x += canvas.width;
+	if(asteroid.position.x > canvas.width) asteroid.position.x -= canvas.width;
+	if(asteroid.position.y < 0) asteroid.position.y += canvas.height;
+	if(asteroid.position.y > canvas.height) asteroid.position.y -= canvas.height;
+	});
 }
 
 /**
@@ -62,6 +79,28 @@ function render(elapsedTime, ctx) {
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   player.render(elapsedTime, ctx);
+  
+  asteroids.forEach(function(asteroid, index)
+  {
+	ctx.beginPath();
+	ctx.strokeStyle = "white";
+
+	if(asteroid.size == "full")
+	{	
+		ctx.lineWidth=5;
+		ctx.arc(asteroid.position.x,asteroid.position.y,32,0,2*Math.PI);
+		ctx.stroke();
+		ctx.fill();
+	}
+	else if(asteroid.size == "half")
+	{
+		ctx.lineWidth=2.5;
+		ctx.arc(asteroid.position.x,asteroid.position.y,16,0,2*Math.PI);
+		ctx.stroke();
+		ctx.fill();
+	}	
+	ctx.closePath();
+  });
 }
 
 },{"./game.js":2,"./player.js":3}],2:[function(require,module,exports){
@@ -151,13 +190,13 @@ function Player(position, canvas) {
   }
   this.maxVelocity = 
   {
-	x: 5,
-	y: 5
+	x: 1,
+	y: 1
   }
   this.minVelocity = 
   {
-	x: -5,
-	y: -5
+	x: -1,
+	y: -1
   }
   this.asteroidVelocity = 
   {
@@ -171,8 +210,9 @@ function Player(position, canvas) {
   this.steerRight = false;
   this.shooting = false;
   this.shots = [];
-  this.shotDelay = 500;
-  this.shotTimer = 500;
+  this.shotDelay = 250;
+  this.shotTimer = this.shotDelay;
+  this.shotSpeed = 8;
   
   var self = this;
   window.onkeydown = function(event) {
@@ -224,7 +264,7 @@ function Player(position, canvas) {
  */
 Player.prototype.update = function(time) {
 	this.shotTimer+=time;
-	
+
   // Apply angular velocity
   if(this.steerLeft) {
     this.angle += time * 0.005;
@@ -261,25 +301,51 @@ Player.prototype.update = function(time) {
   {
 	if(this.shotTimer >= this.shotDelay)
 	{
+		var acceleration = {
+			x: Math.sin(this.angle),
+			y: Math.cos(this.angle)
+		}
 		this.shotTimer = 0;
 		this.shots.push({
-			x: this.position.x, 
-			y: this.position.y,
-			velocity: {x: this.velocity.x, y: this.velocity.y}
+			start: 
+			{
+				x: this.position.x, 
+				y: this.position.y
+			},			
+			velocity:
+			{
+				x: - acceleration.x * this.shotSpeed,
+				y: - acceleration.y * this.shotSpeed
+			},
+			end: 
+			{
+				x: this.position.x + acceleration.x * -this.shotSpeed, 
+				y: this.position.y + acceleration.y * -this.shotSpeed
+			}
+
 		});
 	}
   }
   
+  var self = this;
   //Update shot positions
   this.shots.forEach(function(shot, index)
   {
-	  shot.x += shot.velocity.x;
-	  shot.y += shot.velocity.y;
+		shot.start.x = shot.end.x;
+		shot.start.y = shot.end.y;
+		shot.end.x += shot.velocity.x;
+		shot.end.y += shot.velocity.y;
+		if(shot.end.x < 0 || shot.end.x > self.worldWidth
+			|| shot.end.y < 0 || shot.end.y > self.worldHeight)
+		{
+			self.shots.splice(index, 1);
+		}
   });
   
   // Apply velocity
   this.position.x += this.velocity.x;
   this.position.y += this.velocity.y;
+  
   // Wrap around the screen
   if(this.position.x < 0) this.position.x += this.worldWidth;
   if(this.position.x > this.worldWidth) this.position.x -= this.worldWidth;
@@ -294,13 +360,13 @@ Player.prototype.update = function(time) {
  */
 Player.prototype.render = function(time, ctx) {
   ctx.save();
-  
+  ctx.lineWidth = 1;
   //Draw the player's shots
   this.shots.forEach(function(shot, index)
   {
 	  ctx.beginPath();
-	  ctx.moveTo(shot.x, shot.y);
-	  ctx.lineTo(shot.x+shot.velocity.x, shot.y+shot.velocity.y);
+	  ctx.moveTo(shot.start.x, shot.start.y);
+	  ctx.lineTo(shot.end.x, shot.end.y);
 	  ctx.closePath();
 	  ctx.strokeStyle = 'white';
 	  ctx.stroke();
